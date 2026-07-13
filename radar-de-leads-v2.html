@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Radar de Leads Locais</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --ink:#16233A; --ink-soft:#243350; --paper:#FAF7F2; --paper-dim:#F0ECE3;
+    --slate:#2B3648; --amber:#E2A63B; --amber-deep:#C8862A; --teal:#4C7A79;
+    --coral:#C24B4B; --line:#DCD5C6; --muted:#5B6474;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0; background:var(--paper); font-family:'Inter',sans-serif; color:var(--slate);}
+  .display{font-family:'Space Grotesk',sans-serif;}
+  .mono{font-family:'IBM Plex Mono',monospace;}
+  .hero{background:var(--ink); padding:32px 20px;}
+  .hero-inner{max-width:720px; margin:0 auto; display:flex; align-items:center; gap:16px;}
+  .pin-wrap{position:relative; width:56px; height:56px; flex-shrink:0; display:flex; align-items:center; justify-content:center;}
+  .pin-pulse{position:absolute; inset:0; border-radius:999px; border:2px solid var(--amber); animation:pulse 2.4s ease-out infinite;}
+  .pin-ring{position:absolute; inset:4px; border-radius:999px; border-top:2px solid var(--amber); border-right:2px solid transparent; border-bottom:2px solid transparent; border-left:2px solid transparent; animation:spin 6s linear infinite;}
+  @keyframes spin{from{transform:rotate(0deg);} to{transform:rotate(360deg);}}
+  @keyframes pulse{0%{opacity:.55; transform:scale(.85);} 70%{opacity:0; transform:scale(1.9);} 100%{opacity:0; transform:scale(1.9);}}
+  @media (prefers-reduced-motion: reduce){ .pin-ring, .pin-pulse{ animation:none !important; } }
+  .hero h1{color:var(--paper); font-size:22px; margin:0 0 2px;}
+  .hero p{color:#B9C2D6; font-size:13px; margin:0;}
+  .wrap{max-width:720px; margin:0 auto; padding:0 20px;}
+  .card{background:#fff; border:1px solid var(--line); border-radius:16px; padding:22px; margin-top:-20px; box-shadow:0 1px 2px rgba(0,0,0,.04);}
+  .grid{display:grid; grid-template-columns:1fr 1fr; gap:16px;}
+  @media (max-width:560px){ .grid{grid-template-columns:1fr;} }
+  label{font-size:12px; font-weight:500; display:block; margin-bottom:6px;}
+  input[type=text], select{
+    width:100%; padding:10px 12px; font-size:14px; border:1px solid var(--line); border-radius:8px;
+    outline:none; background:#fff; color:var(--slate); font-family:'IBM Plex Mono',monospace;
+  }
+  select{font-family:'Inter',sans-serif;}
+  .full{grid-column:1/-1;}
+  .range-row{display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;}
+  .range-val{font-size:12px; padding:2px 8px; border-radius:6px; background:var(--paper-dim); color:var(--ink);}
+  input[type=range]{width:100%; accent-color:var(--amber);}
+  .btn-search{
+    margin-top:18px; width:100%; padding:13px; border:none; border-radius:8px; cursor:pointer;
+    background:var(--amber); color:var(--ink); font-family:'Space Grotesk',sans-serif; font-weight:600; font-size:14px;
+    display:flex; align-items:center; justify-content:center; gap:8px;
+  }
+  .btn-search:disabled{opacity:.5; cursor:not-allowed;}
+  .spinner{width:14px; height:14px; border:2px solid var(--ink); border-top-color:transparent; border-radius:999px; animation:spin 0.7s linear infinite;}
+  .error-box{
+    margin-top:16px; padding:10px 12px; border-radius:8px; font-size:13px; display:flex; gap:8px; align-items:flex-start;
+    background:#FBEEEE; color:var(--coral); border:1px solid #EBC9C9;
+  }
+  .note{display:flex; gap:8px; align-items:flex-start; margin:16px 4px 0;}
+  .note p{font-size:12px; color:var(--muted); margin:0;}
+  .results{max-width:720px; margin:24px auto 60px; padding:0 20px; display:none;}
+  .results-head{display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:10px; margin-bottom:12px;}
+  .results-head h2{font-size:16px; margin:0 0 2px; color:var(--ink);}
+  .results-head p{font-size:12px; color:var(--muted); margin:0;}
+  .exports{display:flex; gap:8px;}
+  .exp-btn{
+    font-size:12px; font-weight:500; display:flex; align-items:center; gap:6px; padding:8px 12px;
+    border-radius:8px; cursor:pointer; border:1px solid var(--line); background:var(--paper-dim); color:var(--ink);
+  }
+  .exp-btn.dark{background:var(--ink); color:var(--paper); border:none;}
+  .table-wrap{border:1px solid var(--line); border-radius:16px; overflow:hidden;}
+  .row{padding:14px 16px;}
+  .row:nth-child(even){background:var(--paper-dim);}
+  .row:not(:last-child){border-bottom:1px solid var(--line);}
+  .row-top{display:flex; justify-content:space-between; align-items:flex-start; gap:8px;}
+  .row-name{font-size:14px; font-weight:600; color:var(--ink);}
+  .row-dist{font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--teal); flex-shrink:0;}
+  .row-addr{font-size:12px; color:var(--muted); margin:4px 0 8px;}
+  .row-links{display:flex; flex-wrap:wrap; gap:14px;}
+  .row-links a{font-size:12px; font-weight:500; text-decoration:none; color:var(--muted);}
+  .row-links a.wpp{color:var(--teal);}
+  .hidden{display:none;}
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <div class="hero-inner">
+    <div class="pin-wrap">
+      <span class="pin-pulse"></span>
+      <span class="pin-ring"></span>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#E2A63B" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+    </div>
+    <div>
+      <h1 class="display">Radar de Leads Locais</h1>
+      <p>Encontre empresas por CEP, tipo e raio — exporte para prospecção.</p>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+  <div class="card">
+    <div class="grid">
+      <div>
+        <label>CEP</label>
+        <input type="text" id="cepInput" placeholder="00000-000" inputmode="numeric" maxlength="9" />
+      </div>
+      <div>
+        <label>Tipo de empresa</label>
+        <select id="categoriaInput"></select>
+      </div>
+      <div class="full hidden" id="customWrap">
+        <label>Digite o tipo (ex.: pizzaria, pet shop, dentista)</label>
+        <input type="text" id="customInput" placeholder="ex.: pizzaria" />
+      </div>
+      <div class="full">
+        <div class="range-row">
+          <label style="margin:0;">Raio de busca</label>
+          <span class="range-val mono" id="raioVal">5 km</span>
+        </div>
+        <input type="range" id="raioInput" min="1" max="25" value="5" />
+      </div>
+    </div>
+
+    <button class="btn-search display" id="searchBtn">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+      <span id="btnLabel">Buscar empresas</span>
+    </button>
+
+    <div class="error-box hidden" id="errorBox">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="flex-shrink:0; margin-top:1px;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      <span id="errorText"></span>
+    </div>
+  </div>
+
+  <div class="note">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#4C7A79" stroke-width="2.2" style="flex-shrink:0; margin-top:2px;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+    <p>Os dados vêm do OpenStreetMap. Telefone é exibido como link de WhatsApp quando o formato permite — não é confirmação de que o número tem WhatsApp ativo. E-mail aparece só quando cadastrado publicamente, o que é raro.</p>
+  </div>
+</div>
+
+<div class="results" id="resultsSection">
+  <div class="results-head">
+    <div>
+      <h2 class="display" id="resultsTitle"></h2>
+      <p id="resultsSubtitle"></p>
+    </div>
+    <div class="exports">
+      <button class="exp-btn" id="csvBtn">CSV</button>
+      <button class="exp-btn dark" id="xlsxBtn">Excel</button>
+    </div>
+  </div>
+  <div class="table-wrap" id="tableWrap"></div>
+</div>
+
+<script>
+// ---------- Category -> OSM tag mapping ----------
+const CATEGORIES = {
+  academia: { label: "Academia", filters: [{ k: "leisure", v: "fitness_centre" }] },
+  restaurante: { label: "Restaurante", filters: [{ k: "amenity", v: "restaurant" }] },
+  lanchonete: { label: "Lanchonete / Fast-food", filters: [{ k: "amenity", v: "fast_food" }] },
+  cafeteria: { label: "Cafeteria", filters: [{ k: "amenity", v: "cafe" }] },
+  bar: { label: "Bar", filters: [{ k: "amenity", v: "bar" }, { k: "amenity", v: "pub" }] },
+  padaria: { label: "Padaria", filters: [{ k: "shop", v: "bakery" }] },
+  mercado: { label: "Mercado / Supermercado", filters: [{ k: "shop", v: "supermarket" }, { k: "shop", v: "convenience" }] },
+  farmacia: { label: "Farmácia", filters: [{ k: "amenity", v: "pharmacy" }] },
+  clinica: { label: "Clínica / Consultório", filters: [{ k: "amenity", v: "clinic" }, { k: "amenity", v: "doctors" }, { k: "healthcare", v: "clinic" }] },
+  odontologia: { label: "Clínica odontológica", filters: [{ k: "amenity", v: "dentist" }] },
+  salao_beleza: { label: "Salão de beleza / Barbearia", filters: [{ k: "shop", v: "hairdresser" }, { k: "shop", v: "beauty" }] },
+  petshop: { label: "Pet shop", filters: [{ k: "shop", v: "pet" }] },
+  loja: { label: "Loja (qualquer tipo)", filters: [{ k: "shop" }] },
+  oficina: { label: "Oficina mecânica", filters: [{ k: "shop", v: "car_repair" }] },
+  hotel: { label: "Hotel / Pousada", filters: [{ k: "tourism", v: "hotel" }, { k: "tourism", v: "guest_house" }] },
+  imobiliaria: { label: "Imobiliária", filters: [{ k: "office", v: "estate_agent" }] },
+  advocacia: { label: "Escritório de advocacia", filters: [{ k: "office", v: "lawyer" }] },
+  contabilidade: { label: "Escritório de contabilidade", filters: [{ k: "office", v: "accountant" }] },
+  escritorio: { label: "Escritório (qualquer tipo)", filters: [{ k: "office" }] },
+  outro: { label: "Outro (digite abaixo)", filters: null },
+};
+
+// ---------- Populate select ----------
+const categoriaSelect = document.getElementById('categoriaInput');
+Object.entries(CATEGORIES).forEach(([key, val]) => {
+  const opt = document.createElement('option');
+  opt.value = key; opt.textContent = val.label;
+  categoriaSelect.appendChild(opt);
+});
+categoriaSelect.addEventListener('change', () => {
+  document.getElementById('customWrap').classList.toggle('hidden', categoriaSelect.value !== 'outro');
+});
+
+// ---------- CEP mask ----------
+const cepInput = document.getElementById('cepInput');
+cepInput.addEventListener('input', (e) => {
+  let digits = e.target.value.replace(/\D/g, '').slice(0, 8);
+  e.target.value = digits.length > 5 ? digits.slice(0,5) + '-' + digits.slice(5) : digits;
+});
+
+// ---------- Raio slider ----------
+const raioInput = document.getElementById('raioInput');
+const raioVal = document.getElementById('raioVal');
+raioInput.addEventListener('input', () => { raioVal.textContent = raioInput.value + ' km'; });
+
+// ---------- Helpers ----------
+function haversineKm(lat1, lon1, lat2, lon2) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+function toWhatsAppLink(rawPhone) {
+  if (!rawPhone) return null;
+  let digits = rawPhone.split(';')[0].replace(/\D/g, '');
+  if (!digits) return null;
+  if (digits.startsWith('0055')) digits = digits.slice(2);
+  if (!digits.startsWith('55')) digits = '55' + digits.replace(/^0/, '');
+  if (digits.length < 12 || digits.length > 13) return null;
+  return 'https://wa.me/' + digits;
+}
+
+function buildOverpassQuery(filters, lat, lon, radiusM) {
+  let body = '';
+  for (const f of filters) {
+    const sel = f.v ? `["${f.k}"="${f.v}"]` : `["${f.k}"]`;
+    body += `node${sel}(around:${radiusM},${lat},${lon});\n`;
+    body += `way${sel}(around:${radiusM},${lat},${lon});\n`;
+    body += `relation${sel}(around:${radiusM},${lat},${lon});\n`;
+  }
+  return `[out:json][timeout:25];(${body});out center tags;`;
+}
+
+function parseElements(elements, centerLat, centerLon) {
+  const seen = new Set();
+  const out = [];
+  for (const el of elements) {
+    const tags = el.tags || {};
+    const nome = tags.name;
+    if (!nome) continue;
+    const key = `${nome}|${tags['addr:street']||''}|${tags['addr:housenumber']||''}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    let lat, lon;
+    if (el.type === 'node') { lat = el.lat; lon = el.lon; }
+    else if (el.center) { lat = el.center.lat; lon = el.center.lon; }
+    else continue;
+
+    const telefone = tags.phone || tags['contact:phone'] || tags['contact:mobile'] || '';
+    const email = tags.email || tags['contact:email'] || '';
+    let site = tags.website || tags['contact:website'] || '';
+    if (site && !/^https?:\/\//i.test(site)) site = 'https://' + site;
+
+    const rua = tags['addr:street'] || '';
+    const numero = tags['addr:housenumber'] || '';
+    const bairro = tags['addr:suburb'] || tags['addr:neighbourhood'] || '';
+    const cidade = tags['addr:city'] || '';
+    let endereco = [rua && numero ? `${rua}, ${numero}` : rua, bairro, cidade].filter(Boolean).join(' - ');
+    if (!endereco) endereco = 'Endereço não informado';
+
+    out.push({ nome, telefone, email, site, endereco, distancia: haversineKm(centerLat, centerLon, lat, lon) });
+  }
+  return out;
+}
+
+function escapeHtml(str) {
+  return String(str).replace(/[&<>"']/g, (m) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+
+// ---------- State ----------
+let currentResults = null;
+let currentMeta = null;
+
+const searchBtn = document.getElementById('searchBtn');
+const btnLabel = document.getElementById('btnLabel');
+const errorBox = document.getElementById('errorBox');
+const errorText = document.getElementById('errorText');
+const resultsSection = document.getElementById('resultsSection');
+
+function setLoading(isLoading, msg) {
+  searchBtn.disabled = isLoading;
+  if (isLoading) {
+    btnLabel.innerHTML = '';
+    const spin = document.createElement('span');
+    spin.className = 'spinner';
+    btnLabel.appendChild(spin);
+    btnLabel.appendChild(document.createTextNode(' ' + (msg || 'Buscando...')));
+  } else {
+    btnLabel.textContent = 'Buscar empresas';
+  }
+}
+
+function showError(msg) {
+  errorText.textContent = msg;
+  errorBox.classList.remove('hidden');
+}
+function hideError() { errorBox.classList.add('hidden'); }
+
+// ---------- Fetch com fallback e erro identificado ----------
+async function fetchComFallback(etapa, tentativas) {
+  let ultimoErro = null;
+  for (const t of tentativas) {
+    try {
+      const res = await fetch(t.url, t.options || {});
+      if (!res.ok) { ultimoErro = new Error(`resposta ${res.status}`); continue; }
+      return await res.json();
+    } catch (e) {
+      ultimoErro = e;
+    }
+  }
+  throw new Error(
+    `Falha na etapa "${etapa}". Nenhum servidor respondeu (${ultimoErro ? ultimoErro.message : 'sem detalhe'}). ` +
+    `Se você usa bloqueador de anúncios (AdBlock/uBlock) ou antivírus com filtro web, desative para esta página e tente de novo.`
+  );
+}
+
+// ---------- Search ----------
+searchBtn.addEventListener('click', async () => {
+  hideError();
+  resultsSection.style.display = 'none';
+  currentResults = null;
+
+  const cepDigits = cepInput.value.replace(/\D/g, '');
+  if (cepDigits.length !== 8) { showError('Digite um CEP válido com 8 números.'); return; }
+
+  const categoria = categoriaSelect.value;
+  let filters;
+  if (categoria === 'outro') {
+    const slug = document.getElementById('customInput').value.trim().toLowerCase().replace(/\s+/g, '_');
+    if (!slug) { showError('Digite o tipo de empresa desejado.'); return; }
+    filters = [
+      { k: 'shop', v: slug }, { k: 'amenity', v: slug }, { k: 'office', v: slug },
+      { k: 'leisure', v: slug }, { k: 'craft', v: slug },
+    ];
+  } else {
+    filters = CATEGORIES[categoria].filters;
+  }
+  const raio = Number(raioInput.value);
+
+  setLoading(true, 'Localizando CEP...');
+  try {
+    const cepData = await fetchComFallback('Consulta de CEP', [
+      { url: `https://viacep.com.br/ws/${cepDigits}/json/` },
+      { url: `https://brasilapi.com.br/api/cep/v2/${cepDigits}` },
+    ]);
+    // Normaliza os dois formatos (ViaCEP e BrasilAPI)
+    const viaData = {
+      erro: cepData.erro === true || cepData.type === 'service_error',
+      logradouro: cepData.logradouro || cepData.street || '',
+      bairro: cepData.bairro || cepData.neighborhood || '',
+      localidade: cepData.localidade || cepData.city || '',
+      uf: cepData.uf || cepData.state || '',
+      lat: cepData.location && cepData.location.coordinates ? cepData.location.coordinates.latitude : null,
+      lon: cepData.location && cepData.location.coordinates ? cepData.location.coordinates.longitude : null,
+    };
+    if (viaData.erro || !viaData.localidade) throw new Error('CEP não encontrado. Confira e tente novamente.');
+
+    const enderecoBase = [viaData.logradouro, viaData.bairro, viaData.localidade, viaData.uf, 'Brasil'].filter(Boolean).join(', ');
+
+    let lat = null, lon = null;
+
+    // A BrasilAPI v2 às vezes já devolve coordenadas do CEP — se veio, pula o Nominatim
+    if (viaData.lat && viaData.lon) {
+      lat = parseFloat(viaData.lat);
+      lon = parseFloat(viaData.lon);
+    }
+
+    if (lat === null || lon === null || isNaN(lat) || isNaN(lon)) {
+      setLoading(true, 'Localizando coordenadas...');
+      let geoData = await fetchComFallback('Geocodificação do endereço', [
+        { url: `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(enderecoBase)}` },
+      ]);
+      if (!geoData || geoData.length === 0) {
+        const fallbackQ = `${viaData.localidade}, ${viaData.uf}, Brasil`;
+        geoData = await fetchComFallback('Geocodificação da cidade', [
+          { url: `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(fallbackQ)}` },
+        ]);
+      }
+      if (!geoData || geoData.length === 0) throw new Error('Não foi possível localizar as coordenadas deste CEP.');
+      lat = parseFloat(geoData[0].lat);
+      lon = parseFloat(geoData[0].lon);
+    }
+
+    setLoading(true, 'Buscando empresas na região...');
+    const radiusM = Math.round(raio * 1000);
+    const query = buildOverpassQuery(filters, lat, lon, radiusM);
+    const opBody = { method: 'POST', body: 'data=' + encodeURIComponent(query) };
+    const opData = await fetchComFallback('Busca de empresas (Overpass)', [
+      { url: 'https://overpass-api.de/api/interpreter', options: opBody },
+      { url: 'https://overpass.kumi.systems/api/interpreter', options: opBody },
+      { url: 'https://maps.mail.ru/osm/tools/overpass/api/interpreter', options: opBody },
+    ]);
+
+    const parsed = parseElements(opData.elements || [], lat, lon).sort((a,b) => a.distancia - b.distancia);
+    if (parsed.length === 0) throw new Error('Nenhuma empresa encontrada nesse raio. Tente aumentar a distância ou trocar o tipo.');
+
+    currentResults = parsed;
+    currentMeta = { cidade: viaData.localidade, uf: viaData.uf, raio, total: parsed.length };
+    renderResults();
+  } catch (err) {
+    showError(err.message || 'Erro inesperado. Tente novamente.');
+  } finally {
+    setLoading(false);
+  }
+});
+
+// ---------- Render ----------
+function renderResults() {
+  const comWpp = currentResults.filter(r => toWhatsAppLink(r.telefone)).length;
+  const comEmail = currentResults.filter(r => r.email).length;
+  const comSite = currentResults.filter(r => r.site).length;
+
+  document.getElementById('resultsTitle').textContent =
+    `${currentMeta.total} empresa${currentMeta.total === 1 ? '' : 's'} encontrada${currentMeta.total === 1 ? '' : 's'}`;
+  document.getElementById('resultsSubtitle').textContent =
+    `${currentMeta.cidade} - ${currentMeta.uf} · raio de ${currentMeta.raio} km · ${comWpp} com WhatsApp · ${comEmail} com e-mail · ${comSite} com site`;
+
+  const tableWrap = document.getElementById('tableWrap');
+  tableWrap.innerHTML = currentResults.map(r => {
+    const wpp = toWhatsAppLink(r.telefone);
+    let linksHtml = '';
+    if (wpp) linksHtml += `<a class="wpp" href="${wpp}" target="_blank" rel="noopener noreferrer">WhatsApp</a>`;
+    else if (r.telefone) linksHtml += `<a href="tel:${r.telefone.replace(/\D/g,'')}">${escapeHtml(r.telefone)}</a>`;
+    if (r.email) linksHtml += `<a href="mailto:${escapeHtml(r.email)}">${escapeHtml(r.email)}</a>`;
+    if (r.site) linksHtml += `<a href="${escapeHtml(r.site)}" target="_blank" rel="noopener noreferrer">Site</a>`;
+
+    return `
+      <div class="row">
+        <div class="row-top">
+          <span class="row-name">${escapeHtml(r.nome)}</span>
+          <span class="row-dist mono">${r.distancia.toFixed(1)} km</span>
+        </div>
+        <p class="row-addr">${escapeHtml(r.endereco)}</p>
+        <div class="row-links">${linksHtml}</div>
+      </div>
+    `;
+  }).join('');
+
+  resultsSection.style.display = 'block';
+}
+
+// ---------- Exports ----------
+document.getElementById('csvBtn').addEventListener('click', () => {
+  if (!currentResults) return;
+  const headers = ['Nome','WhatsApp','Telefone','E-mail','Site','Endereço','Distância (km)'];
+  const rows = currentResults.map(r => [
+    r.nome, toWhatsAppLink(r.telefone) || '', r.telefone || '', r.email || '', r.site || '',
+    r.endereco, r.distancia.toFixed(1).replace('.', ','),
+  ]);
+  const csv = [headers, ...rows].map(row => row.map(f => `"${String(f||'').replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'leads.csv'; a.click();
+  URL.revokeObjectURL(url);
+});
+
+document.getElementById('xlsxBtn').addEventListener('click', () => {
+  if (!currentResults) return;
+  const data = currentResults.map(r => ({
+    Nome: r.nome, WhatsApp: toWhatsAppLink(r.telefone) || '', Telefone: r.telefone || '',
+    'E-mail': r.email || '', Site: r.site || '', Endereço: r.endereco,
+    'Distância (km)': Number(r.distancia.toFixed(1)),
+  }));
+  const ws = XLSX.utils.json_to_sheet(data);
+  ws['!cols'] = [{wch:28},{wch:26},{wch:18},{wch:24},{wch:26},{wch:34},{wch:14}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Leads');
+  XLSX.writeFile(wb, 'leads.xlsx');
+});
+</script>
+</body>
+</html>
